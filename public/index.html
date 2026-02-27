@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Green Points Waste Tracker</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Zoom & Pan Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #134e5e, #71b280);
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 5px;
+    }
+
+    h3 {
+      margin-top: 0;
+      font-weight: normal;
+    }
+
+    .card {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 20px;
+      margin: 20px auto;
+      width: 90%;
+      max-width: 700px;
+      border-radius: 10px;
+    }
+
+    input, button {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      background-color: #2ecc71;
+      color: black;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background-color: #27ae60;
+    }
+
+    canvas {
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    pre {
+      text-align: left;
+      background: black;
+      padding: 10px;
+      overflow-x: auto;
+      font-size: 12px;
+      color: #0f0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>GREEN POINTS WASTE TRACKER</h1>
+  <h3>Track Waste • Earn Points • Save the Planet 🌍</h3>
+
+  <!-- LOG WASTE -->
+  <div class="card">
+    <h2>Log Waste</h2>
+    <input id="houseNo" type="number" placeholder="House Number" />
+    <input id="wasteKg" type="number" placeholder="Waste (kg)" />
+    <br>
+    <button onclick="logWaste()">Log Waste</button>
+    <pre id="result"></pre>
+  </div>
+
+  <!-- GRAPH CONTROLS -->
+  <div class="card">
+    <h2>Graph Controls</h2>
+
+    <button onclick="showAll()">Show All 1000 Houses</button>
+    <br><br>
+
+    <label>House Range:</label><br>
+    From <input id="startHouse" type="number" value="1" min="1" max="1000">
+    To <input id="endHouse" type="number" value="100" min="1" max="1000">
+    <button onclick="showRange()">Show Range</button>
+    <br><br>
+
+    <button onclick="showMonthly()">Show Monthly Trend</button>
+  </div>
+
+  <!-- GRAPH -->
+  <div class="card">
+    <h2>Green Points Visualization</h2>
+    <p>Zoom: Mouse wheel | Pan: Drag graph</p>
+    <canvas id="chart" height="300"></canvas>
+  </div>
+
+  <!-- RESET -->
+  <div class="card">
+    <h2>Testing Controls</h2>
+    <button onclick="resetDB()">Reset Database</button>
+  </div>
+
+  <script>
+    let chart;
+    let allHouses = [];
+
+    async function fetchData() {
+      const res = await fetch("/api/houses");
+      allHouses = await res.json();
+      showAll();
+    }
+
+    function drawChart(labels, data, labelText) {
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: labelText,
+            data: data,
+            borderColor: "green",
+            backgroundColor: "rgba(0,255,0,0.15)",
+            tension: 0.3,
+            pointRadius: 0,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            zoom: {
+              pan: {
+                enabled: true,
+                mode: "x"
+              },
+              zoom: {
+                wheel: { enabled: true },
+                pinch: { enabled: true },
+                mode: "x"
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "House Number / Time" }
+            },
+            y: {
+              title: { display: true, text: "Green Points" }
+            }
+          }
+        }
+      });
+    }
+
+    function showAll() {
+      const labels = allHouses.map(h => h.houseNo);
+      const points = allHouses.map(h => h.greenPoints);
+      drawChart(labels, points, "Green Points – All 1000 Houses");
+    }
+
+    function showRange() {
+      const start = Number(document.getElementById("startHouse").value);
+      const end = Number(document.getElementById("endHouse").value);
+
+      const filtered = allHouses.filter(
+        h => h.houseNo >= start && h.houseNo <= end
+      );
+
+      const labels = filtered.map(h => h.houseNo);
+      const points = filtered.map(h => h.greenPoints);
+
+      drawChart(labels, points, `Green Points – Houses ${start} to ${end}`);
+    }
+
+    function showMonthly() {
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      const monthlyPoints = months.map(() =>
+        Math.floor(Math.random() * 50000) + 10000
+      );
+
+      drawChart(months, monthlyPoints, "Monthly Green Points Trend");
+    }
+
+    async function logWaste() {
+      const houseNo = Number(document.getElementById("houseNo").value);
+      const wasteKg = Number(document.getElementById("wasteKg").value);
+
+      const res = await fetch("/api/houses/log-waste", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ houseNo, wasteKg })
+      });
+
+      const data = await res.json();
+      document.getElementById("result").innerText =
+        JSON.stringify(data, null, 2);
+
+      fetchData();
+    }
+
+    async function resetDB() {
+      await fetch("/api/houses/reset", { method: "POST" });
+      alert("Database Reset Successful");
+      fetchData();
+    }
+
+    fetchData();
+  </script>
+
+</body>
+</html>
